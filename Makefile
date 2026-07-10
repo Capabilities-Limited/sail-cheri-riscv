@@ -30,7 +30,6 @@ SAIL_CHECK_SRCS = $(SAIL_RISCV_MODEL_DIR)/riscv_addr_checks_common.sail \
 
 SAIL_DEFAULT_INST = $(SAIL_RISCV_MODEL_DIR)/riscv_insts_base.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_aext.sail \
-                    $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zca.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_mext.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_hints.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zicsr.sail \
@@ -44,6 +43,8 @@ SAIL_DEFAULT_INST = $(SAIL_RISCV_MODEL_DIR)/riscv_insts_base.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zbb.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zbc.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zbs.sail \
+                    $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zca.sail \
+                    $(SAIL_RISCV_MODEL_DIR)/riscv_insts_zcb.sail \
                     $(SAIL_RISCV_MODEL_DIR)/riscv_insts_svinval.sail \
                     $(SAIL_CHERI_MODEL_DIR)/cheri_insts_begin.sail \
                     $(SAIL_CHERI_MODEL_DIR)/cheri_insts.sail \
