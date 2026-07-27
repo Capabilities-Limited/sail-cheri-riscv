@@ -712,7 +712,7 @@ function clause execute (LoadResCap(cd, rs1_cs1, aq, rl)) = {
       match translateAddr(vaddr, Read(if canC(auth_val) then Tagged else Data)) {
         TR_Failure(e, ext_ptw) => { handle_translate_exception(vaddr, e, ext_ptw); RETIRE_FAIL },
         TR_Address(addr, pbmt, ext_ptw) => {
-          let c = mem_read_cap(addr, pbmt, aq, aq & rl, false);
+          let c = mem_read_cap(addr, pbmt, aq, aq & rl, false, false);
           match c {
             Ok(v) => {
               if v.tag & ext_ptw.tagged_load_behaviour == TaggedLoadTrap then {
@@ -776,7 +776,7 @@ function clause execute LoadCapImm(cd, rs1_cs1, imm) = {
         TR_Address(addr, pbmt, ext_ptw) => {
           let aq = false;
           let rl = false;
-          match mem_read_cap(addr, pbmt, aq, aq & rl, false) {
+          match mem_read_cap(addr, pbmt, aq, aq & rl, false, false) {
             Ok(v) => {
               if v.tag & ext_ptw.tagged_load_behaviour == TaggedLoadTrap then {
                 handle_translate_exception(vaddr, E_Load_Page_Fault(), { ext_ptw with cheri_page_fault = PageFault_Cheri });
@@ -885,33 +885,42 @@ function clause execute StoreCondCap(rd, cs2, rs1_cs1, aq, rl) = {
       let cs2_val = C(cs2);
       let cs2_val = clearTagIf(cs2_val, not(canC(auth_val)));
       let cs2_val = legalizeStoredPermissions(cs2_val, auth_val);
+      let typ = Write(if cs2_val.tag then Tagged else Data);
 
-      match translateAddr(vaddr, Write(if cs2_val.tag then Tagged else Data)) {
+      match translateAddr(vaddr, typ) {
         TR_Failure(e, ext_ptw) => { handle_translate_exception(vaddr, e, ext_ptw); RETIRE_FAIL },
         TR_Address(addr, pbmt, _) => {
-          if not(match_reservation(physaddr_bits(addr))) then {
-            /* cannot happen in rmem */
-            X(rd) = zero_extend(0b1);
-            cancel_reservation();
-            RETIRE_SUCCESS
-          } else {
-            match mem_write_ea_cap(addr, aq & rl, rl, false) {
-              Err(e) => { handle_mem_exception(vaddr, e); RETIRE_FAIL },
-              Ok(_)  => {
-                match mem_write_cap(addr, pbmt, cs2_val, aq & rl, rl, false) {
-                  Ok(true) => {
-                    X(rd) = zero_extend(0b0);
-                    cancel_reservation();
-                    RETIRE_SUCCESS
-                  },
-                  Ok(false) => {
-                    X(rd) = zero_extend(0b1);
-                    cancel_reservation();
-                    RETIRE_SUCCESS
-                  },
-                  Err(e) => {
-                    handle_mem_exception(vaddr, e);
-                    RETIRE_FAIL
+          // Explicitly do access checks first in case the memory does
+          // not exist or doesn't support LR/SC.
+          let priv = effectivePrivilege(typ, mstatus, cur_privilege());
+          match phys_access_check(typ, priv, pbmt, addr, cap_size, true) {
+            Some(e) => { handle_mem_exception(vaddr, e); RETIRE_FAIL },
+            None() => {
+              if not(match_reservation(physaddr_bits(addr))) then {
+                /* cannot happen in rmem */
+                X(rd) = zero_extend(0b1);
+                cancel_reservation();
+                RETIRE_SUCCESS
+              } else {
+                match mem_write_ea_cap(addr, aq & rl, rl, false) {
+                  Err(e) => { handle_mem_exception(vaddr, e); RETIRE_FAIL },
+                  Ok(_)  => {
+                    match mem_write_cap(addr, pbmt, cs2_val, aq & rl, rl, false) {
+                      Ok(true) => {
+                        X(rd) = zero_extend(0b0);
+                        cancel_reservation();
+                        RETIRE_SUCCESS
+                      },
+                      Ok(false) => {
+                        X(rd) = zero_extend(0b1);
+                        cancel_reservation();
+                        RETIRE_SUCCESS
+                      },
+                      Err(e) => {
+                        handle_mem_exception(vaddr, e);
+                        RETIRE_FAIL
+                      }
+                    }
                   }
                 }
               }
@@ -956,7 +965,7 @@ function clause execute AMOSwapCap(cd, cs2, rs1_cs1, aq, rl) = {
           match mem_write_ea_cap(addr, aq & rl, rl, false) {
             Err(e) => { handle_mem_exception(vaddr, e); RETIRE_FAIL },
             Ok(_)  => {
-              match mem_read_cap(addr, pbmt, aq, aq & rl, false) {
+              match mem_read_cap(addr, pbmt, aq, aq & rl, false, true) {
                 Ok(v) => {
                   match mem_write_cap(addr, pbmt, cs2_val, aq & rl, rl, false) {
                     Ok(_) => {

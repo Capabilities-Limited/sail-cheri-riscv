@@ -8,9 +8,9 @@
 
 /* CHERI interface to physical memory.  We use the metadata facility for tags. */
 
-val mem_read_cap : (physaddr, PBMT, bool, bool, bool) -> MemoryOpResult(Capability)
-function mem_read_cap (addr, pbmt, aq, rl, res) = {
-  let result : MemoryOpResult((CapBits, bool)) = mem_read_meta(Read(Data), pbmt, addr, cap_size, aq, rl, res, true);
+val mem_read_cap : (physaddr, PBMT, bool, bool, bool, bool) -> MemoryOpResult(Capability)
+function mem_read_cap (addr, pbmt, aq, rl, res, for_amo) = {
+  let result : MemoryOpResult((CapBits, bool)) = mem_read_meta(if for_amo then ReadWrite(Data, Data) else Read(Data), pbmt, addr, cap_size, aq, rl, res, true);
   match result {
     Ok(v, tag) => Ok(bitsToCap(tag, v)),
     Err(e)     => Err(e) : MemoryOpResult(Capability)
