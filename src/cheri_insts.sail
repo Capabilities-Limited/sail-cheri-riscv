@@ -147,7 +147,7 @@ function clause execute (YTYPER(rd, rs1)) = {
  */
 function clause execute (YPERMR(rd, rs1)) = {
   let rs1_cap = Y(rs1);
-  X(rd) = packPerms(getArchPermsLegalized(rs1_cap), rs1_cap.gl, rs1_cap.sd_perms).bits;
+  X(rd) = packPerms(getArchPermsLegalized(rs1_cap), rs1_cap.g, rs1_cap.sd_perms).bits;
   RETIRE_SUCCESS
 }
 
@@ -275,12 +275,12 @@ function clause execute(YPERMC(rd, rs1, rs2)) = {
   let cond = capIsSealed(rs1_cap) | capIsMalformed(rs1_cap);
   let inCap = clearTagIf(rs1_cap, cond);
 
-  let old_perms = packPerms(getArchPermsLegalized(inCap), inCap.gl, inCap.sd_perms).bits;
+  let old_perms = packPerms(getArchPermsLegalized(inCap), inCap.g, inCap.sd_perms).bits;
 
   let new_perms = old_perms & ~(rs2_val);
 
-  let (new_arch_perms, new_gl, new_sd_perms) = unpackPerms(struct {bits = new_perms});
-  let newCap = { setArchPerms(inCap, new_arch_perms) with gl = new_gl, sd_perms = new_sd_perms };
+  let (new_arch_perms, new_g, new_sd_perms) = unpackPerms(struct {bits = new_perms});
+  let newCap = { setArchPerms(inCap, new_arch_perms) with g = new_g, sd_perms = new_sd_perms };
 
   Y(rd) = newCap;
   RETIRE_SUCCESS
