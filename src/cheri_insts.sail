@@ -120,8 +120,7 @@ union clause ast = YLENR  : (regidx, regidx)
 union clause ast = YTAGR  : (regidx, regidx)
 union clause ast = YMODER : (regidx, regidx)
 union clause ast = YTYPER : (regidx, regidx)
-
-union clause ast = SRLIY  : (regidx, regidx)
+union clause ast = YHIR  : (regidx, regidx)
 
 /*!
  * insnref: ymoder_32bit brief
@@ -161,7 +160,7 @@ function clause execute (YTYPER(rd, rs1)) = {
  */
 function clause execute (YPERMR(rd, rs1)) = {
   let rs1_cap = Y(rs1);
-  X(rd) = packPerms(getArchPermsLegalized(rs1_cap), rs1_cap.gl, rs1_cap.sd_perms).bits;
+  X(rd) = packPerms(getArchPermsLegalized(rs1_cap), rs1_cap.g, rs1_cap.sd_perms).bits;
   RETIRE_SUCCESS
 }
 
@@ -207,30 +206,30 @@ function clause execute (YTOPR(rd, rs1)) = {
 }
 
 /*!
- * insnref: srliy_32bit
+ * insnref: yhir_32bit
  * Capability get metadata
  *
- * srliy rd, rs1
+ * yhir rd, rs1
  *
  * Copy the metadata (bits [YLEN-1:XLEN]) of capability rs1 into rd.
  */
-function clause execute (SRLIY(rd, rs1)) = {
+function clause execute (YHIR(rd, rs1)) = {
   let rs1_cap = Y(rs1);
   X(rd) = capToMetadataBits(rs1_cap).bits;
   RETIRE_SUCCESS
 }
 
-union clause ast = PACKY : (regidx, regidx, regidx)
+union clause ast = YHIW : (regidx, regidx, regidx)
 /*!
- * insnref: packy_32bit
+ * insnref: yhiw_32bit
  * Capability set metadata
  *
- * packy rd, rs1, rs2
+ * yhiw rd, rs1, rs2
  *
- * Packs the least-significant XLEN-bits of rs1 and rs2 into
- * rd, and set rd.tag=0.
+ * Copy rs1[XLEN-1:0] into rd[XLEN-1:0], copy rs2[XLEN-1:0] into
+ * rd[YLEN-1:XLEN], and set rd.tag=0.
  */
-function clause execute (PACKY(rd, rs1, rs2)) = {
+function clause execute (YHIW(rd, rs1, rs2)) = {
   let lo = X(rs1);
   let hi = X(rs2);
   let newCap = bitsToCap(false, hi @ lo);
@@ -289,12 +288,12 @@ function clause execute(YPERMC(rd, rs1, rs2)) = {
   let cond = capIsSealed(rs1_cap) | capIsMalformed(rs1_cap);
   let inCap = clearTagIf(rs1_cap, cond);
 
-  let old_perms = packPerms(getArchPermsLegalized(inCap), inCap.gl, inCap.sd_perms).bits;
+  let old_perms = packPerms(getArchPermsLegalized(inCap), inCap.g, inCap.sd_perms).bits;
 
   let new_perms = old_perms & ~(rs2_val);
 
-  let (new_arch_perms, new_gl, new_sd_perms) = unpackPerms(struct {bits = new_perms});
-  let newCap = { setArchPerms(inCap, new_arch_perms) with gl = new_gl, sd_perms = new_sd_perms };
+  let (new_arch_perms, new_g, new_sd_perms) = unpackPerms(struct {bits = new_perms});
+  let newCap = { setArchPerms(inCap, new_arch_perms) with g = new_g, sd_perms = new_sd_perms };
 
   Y(rd) = newCap;
   RETIRE_SUCCESS
@@ -562,7 +561,7 @@ union clause ast = YBLD : (regidx, regidx, regidx)
  * . rs2's permissions could have been legally produced by YPERMC, and
  * . All reserved bits in rs2's metadata are 0;
  * Otherwise, copy rs2 to rd and clear rd's tag.
- * YBLD is typically used alongside PACKY to build capabilities from
+ * YBLD is typically used alongside YHIW to build capabilities from
  * integer values.
  */
 function clause execute (YBLD(rd, rs1, rs2)) = {
@@ -578,12 +577,12 @@ function clause execute (YBLD(rd, rs1, rs2)) = {
   RETIRE_SUCCESS
 }
 
-union clause ast = YSUNSEAL : (regidx, regidx, regidx)
+union clause ast = YUNSEALS : (regidx, regidx, regidx)
 /*!
- * insnref: ysunseal_32bit
+ * insnref: yunseals_32bit
  * Unseal by superset reconstruction
  *
- * ysunseal rd, rs1, rs2
+ * yunseals rd, rs1, rs2
  *
  * Copy rs2 to rd.
  *
@@ -600,7 +599,7 @@ union clause ast = YSUNSEAL : (regidx, regidx, regidx)
  * . rs2's permissions and bounds are equal to or a subset of rs1's
  * Otherwise, clear rd's tag.
  */
-function clause execute (YSUNSEAL(rd, rs1, rs2)) = {
+function clause execute (YUNSEALS(rd, rs1, rs2)) = {
   let rs1_cap = Y(rs1);
   let rs2_cap = Y(rs2);
 
@@ -680,17 +679,17 @@ function clause execute (YEQ(rd, rs1, rs2)) = {
   RETIRE_SUCCESS
 }
 
-union clause ast = YSENTRY : (regidx, regidx)
+union clause ast = YSEALE : (regidx, regidx)
 /*!
- * insnref: ysentry_32bit
+ * insnref: yseale_32bit
  * Seal capability as sealed entry.
  *
- * ysentry rd, rs2
+ * yseale rd, rs2
  *
  * Capability `rd` is written with the capability in `rs2` with its type bit set to 1.
  * Attempting to seal an already sealed capability will lead to the tag of `rd` being set to 0.
  */
-function clause execute (YSENTRY(rd, rs2)) = {
+function clause execute (YSEALE(rd, rs2)) = {
   let rs2_cap = Y(rs2);
   let rs2_cap = clearTagIf(rs2_cap, capIsSealed(rs2_cap));
   Y(rd) = sealCap(rs2_cap);
@@ -1056,15 +1055,12 @@ mapping clause encdec = YLENR(rd, rs1)                                          
   <-> 0b1111010 @ 0b00011 @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
 mapping clause encdec = YTAGR(rd, rs1)                                           if cheri_registers_enabled()
   <-> 0b1111010 @ 0b00100 @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
-
-mapping clause encdec = SRLIY(rd, rs1)                                           if cheri_registers_enabled() & xlen == 64
-  <-> 0b00000 @ 0b1000000 @ encdec_reg(rs1) @ 0b101 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled() & xlen == 64
-mapping clause encdec = SRLIY(rd, rs1)                                           if cheri_registers_enabled() & xlen == 32
-  <-> 0b00000 @ 0b0100000 @ encdec_reg(rs1) @ 0b101 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled() & xlen == 32
+mapping clause encdec = YHIR(rd, rs1)                                            if cheri_registers_enabled()
+  <-> 0b1111010 @ 0b00111 @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
 
 mapping clause encdec = YMV(rd, rs1)                                             if cheri_registers_enabled()
   <-> 0b0000011 @ 0b00000 @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
-mapping clause encdec = YSENTRY(rd, rs2)                                         if cheri_registers_enabled()
+mapping clause encdec = YSEALE(rd, rs2)                                          if cheri_registers_enabled()
   <-> 0b0010111 @ encdec_reg(rs2) @ 0b00000 @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
 
 mapping clause encdec = YAMASK(rd, rs1)                                          if cheri_registers_enabled()
@@ -1077,13 +1073,10 @@ mapping clause assembly = YBASER(rd, rs1)  <-> "ybaser"  ^ spc() ^ reg_name(rd) 
 mapping clause assembly = YTOPR(rd, rs1)   <-> "ytopr"   ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1)
 mapping clause assembly = YLENR(rd, rs1)   <-> "ylenr"   ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1)
 mapping clause assembly = YTAGR(rd, rs1)   <-> "ytagr"   ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1)
-mapping clause assembly = SRLIY(rd, rs1)                                              if xlen == 32
-  <-> "srliy"   ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1) ^ sep() ^ "32" if xlen == 32
-mapping clause assembly = SRLIY(rd, rs1)                                              if xlen == 64
-  <-> "srliy"   ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1) ^ sep() ^ "64" if xlen == 64
+mapping clause assembly = YHIR(rd, rs1)    <-> "yhir"    ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1)
 
 mapping clause assembly = YMV(rd, rs1)     <-> "ymv"     ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1)
-mapping clause assembly = YSENTRY(rd, rs1) <-> "ysentry" ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1)
+mapping clause assembly = YSEALE(rd, rs1)  <-> "yseale"  ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1)
 
 mapping clause assembly = YAMASK(rd, rs1)  <-> "yamask"  ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1)
 
@@ -1095,7 +1088,7 @@ mapping clause encdec = YMODEW(rd, rs1, rs2)                                    
   <-> 0b0101011 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled() & (rd != zreg)
 mapping clause encdec = YADDRW(rd, rs1, rs2)                                             if cheri_registers_enabled()
   <-> 0b0001011 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
-mapping clause encdec = PACKY(rd, rs1, rs2)                                              if cheri_registers_enabled()
+mapping clause encdec = YHIW(rd, rs1, rs2)                                               if cheri_registers_enabled()
   <-> 0b0000001 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
 mapping clause encdec = YADD(rd, rs1, rs2)                                               if cheri_registers_enabled() & (rs2 != zreg)
   <-> 0b0000011 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled() & (rs2 != zreg)
@@ -1105,7 +1098,7 @@ mapping clause encdec = YBNDSW(rd, rs1, rs2)                                    
   <-> 0b0011011 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
 mapping clause encdec = YBLD(rd, rs1, rs2)                                               if cheri_registers_enabled()
   <-> 0b0001111 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
-mapping clause encdec = YSUNSEAL(rd, rs1, rs2)                                           if cheri_registers_enabled()
+mapping clause encdec = YUNSEALS(rd, rs1, rs2)                                           if cheri_registers_enabled()
   <-> 0b0000111 @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ encdec_reg(rd) @ 0b1111011 if cheri_registers_enabled()
 
 mapping clause encdec = YEQ(rd, rs1, rs2)                                                if cheri_registers_enabled()
@@ -1121,12 +1114,12 @@ mapping clause encdec = YBNDSWI(rd, rs1, uimm9)                                 
 mapping clause assembly = YPERMC(rd, rs1, rs2)   <-> "ypermc"   ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YMODEW(rd, rs1, rs2)   <-> "ymodew"   ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YADDRW(rd, rs1, rs2)   <-> "yaddrw"   ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
-mapping clause assembly = PACKY(rd, rs1, rs2)    <-> "packy"    ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
+mapping clause assembly = YHIW(rd, rs1, rs2)     <-> "yhiw"     ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YADD(rd, rs1, rs2)     <-> "yadd"     ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YBNDSRW(rd, rs1, rs2)  <-> "ybndsrw"  ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YBNDSW(rd, rs1, rs2)   <-> "ybndsw"   ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YBLD(rd, rs1, rs2)     <-> "ybld"     ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
-mapping clause assembly = YSUNSEAL(rd, rs1, rs2) <-> "ysunseal" ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
+mapping clause assembly = YUNSEALS(rd, rs1, rs2) <-> "yunseals" ^ spc() ^ reg_name(rd) ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 
 mapping clause assembly = YEQ(rd, rs1, rs2)     <-> "yeq"     ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
 mapping clause assembly = YSS(rd, rs1, rs2)     <-> "yss"     ^ spc() ^ reg_name(rd)     ^ sep() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2)
@@ -1194,11 +1187,12 @@ mapping clause encdec_capmode = JAL_capmode(imm_19 @ imm_7_0 @ imm_8 @ imm_18_13
 mapping clause assembly = JAL_capmode(imm, rd)
   <-> "jal" ^ spc() ^ reg_name(rd) ^ sep() ^ hex_bits_21(imm)
 
-mapping clause encdec_capmode = BEQ_reserved_capmode(imm7_6 @ imm5_0 @ imm7_5_0 @ imm5_4_1 @ 0b0, rs2, rs1)                                 if encdec_reg(rs1) <=_u encdec_reg(rs2)
-  <-> imm7_6 : bits(1) @ imm7_5_0 : bits(6) @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ imm5_4_1 : bits(4) @ imm5_0 : bits(1) @ 0b1100011 if encdec_reg(rs1) <=_u encdec_reg(rs2)
+// TODO reserving based on operand order is currently not supported by LLVM. Disable the conditions for these rules
+mapping clause encdec_capmode = BEQ_reserved_capmode(imm7_6 @ imm5_0 @ imm7_5_0 @ imm5_4_1 @ 0b0, rs2, rs1)                                 if encdec_reg(rs1) <=_u encdec_reg(rs2) & false
+  <-> imm7_6 : bits(1) @ imm7_5_0 : bits(6) @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b000 @ imm5_4_1 : bits(4) @ imm5_0 : bits(1) @ 0b1100011 if encdec_reg(rs1) <=_u encdec_reg(rs2) & false
 mapping clause assembly = BEQ_reserved_capmode (imm, rs1, rs2)
   <-> "reserved (beq" ^ spc() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2) ^ sep() ^ hex_bits_signed_13(imm) ^ ")"
-mapping clause encdec_capmode = BNE_reserved_capmode(imm7_6 @ imm5_0 @ imm7_5_0 @ imm5_4_1 @ 0b0, rs2, rs1)                                 if encdec_reg(rs1) <=_u encdec_reg(rs2)
-  <-> imm7_6 : bits(1) @ imm7_5_0 : bits(6) @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b001 @ imm5_4_1 : bits(4) @ imm5_0 : bits(1) @ 0b1100011 if encdec_reg(rs1) <=_u encdec_reg(rs2)
+mapping clause encdec_capmode = BNE_reserved_capmode(imm7_6 @ imm5_0 @ imm7_5_0 @ imm5_4_1 @ 0b0, rs2, rs1)                                 if encdec_reg(rs1) <=_u encdec_reg(rs2) & false
+  <-> imm7_6 : bits(1) @ imm7_5_0 : bits(6) @ encdec_reg(rs2) @ encdec_reg(rs1) @ 0b001 @ imm5_4_1 : bits(4) @ imm5_0 : bits(1) @ 0b1100011 if encdec_reg(rs1) <=_u encdec_reg(rs2) & false
 mapping clause assembly = BNE_reserved_capmode (imm, rs1, rs2)
   <-> "reserved (bne" ^ spc() ^ reg_name(rs1) ^ sep() ^ reg_name(rs2) ^ sep() ^ hex_bits_signed_13(imm) ^ ")"

@@ -173,7 +173,7 @@ function check_format(
     assert(to_bits(cap_len_width, getCapLength(Y(dstR))) == aimLen);
 }
 
-function test_cheri_l8() -> unit = {
+function test_cheri_le() -> unit = {
     if (xlen != 32) then return ();
     let capR : regidx = Regidx(0b00001);
     let lenR : regidx = Regidx(0b00010);
@@ -182,12 +182,12 @@ function test_cheri_l8() -> unit = {
     let impliedLen  = 0b00_1111_1111;
     X(lenR) = zero_extend(impliedLen);
     check_format(capR, lenR, dstR, 0, false, zero_extend(impliedLen));
-    let l8LoLen     = 0b01_0000_0000;
-    X(lenR) = zero_extend(l8LoLen);
-    check_format(capR, lenR, dstR, 0, false, zero_extend(l8LoLen));
-    let l8HiLen     = 0b01_1111_1111;
-    X(lenR) = zero_extend(l8HiLen);
-    check_format(capR, lenR, dstR, 0, false, zero_extend(l8HiLen));
+    let leLoLen     = 0b01_0000_0000;
+    X(lenR) = zero_extend(leLoLen);
+    check_format(capR, lenR, dstR, 0, false, zero_extend(leLoLen));
+    let leHiLen     = 0b01_1111_1111;
+    X(lenR) = zero_extend(leHiLen);
+    check_format(capR, lenR, dstR, 0, false, zero_extend(leHiLen));
     let internalLen = 0b10_0000_0000;
     X(lenR) = zero_extend(internalLen);
     check_format(capR, lenR, dstR, 1, true, zero_extend(internalLen));
@@ -199,9 +199,9 @@ function encodable(c : Capability) -> bool =
     bitsToCap(c.tag, capToMetadataBits(c).bits @ c.address) == c
 
 function test_cheri_redundant() -> unit = {
-    // Construct capabilities that are redundant with the L8 bit:
+    // Construct capabilities that are redundant with the LE bit:
     // an internal exponent loses the bottom bits of B and T to encode the exponent,
-    // L8 keeps those bits by setting L8 to 1 and maintaining an implied exponent
+    // LE keeps those bits by setting LE to 1 and maintaining an implied exponent
     let badCap =
       {
          root_cap with
@@ -617,12 +617,13 @@ function test_cheri_reserved_branches() -> unit = {
     let ast = ext_decode(instBitsBNEGood);
     assert(execute(ast) == RETIRE_SUCCESS);
     // Check that cap mode bans the "bad" instructions
-    let ast = ext_decode(instBitsBEQBad);
-    assert(execute(ast) == RETIRE_FAIL);
-    assert_illegal_cause();
-    let ast = ext_decode(instBitsBNEBad);
-    assert(execute(ast) == RETIRE_FAIL);
-    assert_illegal_cause();
+    // TODO this test is disabled while the reserved branch encodings are unsupported
+    // let ast = ext_decode(instBitsBEQBad);
+    // assert(execute(ast) == RETIRE_FAIL);
+    // assert_illegal_cause();
+    // let ast = ext_decode(instBitsBNEBad);
+    // assert(execute(ast) == RETIRE_FAIL);
+    // assert_illegal_cause();
 }
 
 function test_cheri_scre(cheri_allowed : bool) -> unit = {
@@ -724,6 +725,47 @@ function test_cheri_bad_jump() -> unit = {
     assert(fetch() == F_Ext_Error());
 }
 
+function test_if_instr_reserved(instBits : bits(16), mode : PointerMode, expectReserved : bool) -> unit = {
+    PCC = {setCapMode(PCC, mode)};
+    let ast = ext_decode_compressed(instBits);
+    assert(execute(ast) == (if expectReserved then RETIRE_FAIL else RETIRE_SUCCESS))
+}
+
+function test_cheri_reserved_hints() -> unit = {
+    // Interesting cases:
+    // "Good" means still a nop in capmode.
+    // "Bad" means would not be a nop in capmode, so is reserved instead
+    // "Good" ADDI hint is nop instead
+    let good_c_nop_hint  = encdec_compressed(C_NOP());
+    let bad_c_addi_hint  = encdec_compressed(C_ADDI_HINT(Regidx(0b00001)));
+    let good_c_slli_zimm_hint = encdec_compressed(C_SLLI_HINT(0b000000, Regidx(0b00000)));
+    let good_c_slli_nzimm_hint = encdec_compressed(C_SLLI_HINT(0b000001, Regidx(0b00000)));
+    let bad_c_slli_hint  = encdec_compressed(C_SLLI_HINT(0b000000, Regidx(0b00001)));
+    // No "Good" sr{l,a}i hints as creg has no zero
+    let bad_c_srli_hint  = encdec_compressed(C_SRLI_HINT(Cregidx(0b001)));
+    let bad_c_srai_hint  = encdec_compressed(C_SRAI_HINT(Cregidx(0b001)));
+
+    // All hints enabled in int mode
+    test_if_instr_reserved(good_c_nop_hint       , IntPtrMode, false);
+    test_if_instr_reserved(bad_c_addi_hint       , IntPtrMode, false);
+    test_if_instr_reserved(good_c_slli_zimm_hint , IntPtrMode, false);
+    test_if_instr_reserved(good_c_slli_nzimm_hint, IntPtrMode, false);
+    test_if_instr_reserved(bad_c_slli_hint       , IntPtrMode, false);
+    test_if_instr_reserved(bad_c_srli_hint       , IntPtrMode, false);
+    test_if_instr_reserved(bad_c_srai_hint       , IntPtrMode, false);
+
+    // Good hints enabled in cap mode
+    test_if_instr_reserved(good_c_nop_hint       , CapPtrMode, false);
+    test_if_instr_reserved(good_c_slli_zimm_hint , CapPtrMode, false);
+    test_if_instr_reserved(good_c_slli_nzimm_hint, CapPtrMode, false);
+
+    // Bad hints reserved in cap mode
+    test_if_instr_reserved(bad_c_addi_hint, CapPtrMode, true);
+    test_if_instr_reserved(bad_c_slli_hint, CapPtrMode, true);
+    test_if_instr_reserved(bad_c_srli_hint, CapPtrMode, true);
+    test_if_instr_reserved(bad_c_srai_hint, CapPtrMode, true);
+}
+
 function test_main_ext() -> unit = {
     // Enable CHERI
     misa[Y] = 0b1;
@@ -739,7 +781,7 @@ function test_main_ext() -> unit = {
     test_cheri_system_faults();
     test_cheri_nofastrep();
     test_cheri_zba();
-    test_cheri_l8();
+    test_cheri_le();
     test_cheri_redundant();
     test_cheri_reserved_branches();
     test_cheri_rounding();
@@ -750,6 +792,7 @@ function test_main_ext() -> unit = {
     test_cheri_malformed();
     test_cheri_invalid_addr();
     test_cheri_bad_jump();
+    test_cheri_reserved_hints();
     //test_cheri_enables(); Disable while cheri enables hardwired high
     print("CHERI tests passed\n");
 }

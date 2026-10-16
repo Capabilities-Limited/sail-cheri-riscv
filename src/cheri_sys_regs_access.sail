@@ -1,4 +1,4 @@
-// This file contains overrides for accessing YLEN extended CSRs and their
+// This file contains overrides for accessing YLEN widened CSRs and their
 // XLEN aliases.
 //
 // E.g. for `mtvec[c]` we have:
@@ -169,7 +169,7 @@ function is_root (c : Capability) -> bool = {
   not(c.sealed) &
   capBoundsInfinite(c) &
   c.sd_perms == ones() &
-  c.gl == ones() &
+  c.g == ones() &
   c.ap_p == root_ap_p
 }
 
