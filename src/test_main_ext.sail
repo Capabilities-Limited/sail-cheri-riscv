@@ -612,6 +612,7 @@ function test_cheri_mcre(cheri_allowed : bool) -> unit = {
 }
 
 function test_cheri_enables() -> unit = {
+    PCC = root_cap;
     misa[Y] = 0b1;
     test_cheri_pcc_mode(Machine, true);
     test_cheri_mcre(true);
@@ -781,6 +782,7 @@ function test_main_ext() -> unit = {
     test_cheri_reserved_hints();
     test_cheri_global();
     test_pte_ext();
-    //test_cheri_enables(); Disable while cheri enables hardwired high
+    if not(sys_unsafe_hardwire_cheri_enables()) then test_cheri_enables();
+
     print("CHERI tests passed\n");
 }
