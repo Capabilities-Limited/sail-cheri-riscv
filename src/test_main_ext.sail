@@ -761,6 +761,7 @@ function test_main_ext() -> unit = {
     test_cheri_invalid_addr();
     test_cheri_bad_jump();
     test_cheri_reserved_hints();
+    test_pte_ext();
     //test_cheri_enables(); Disable while cheri enables hardwired high
     print("CHERI tests passed\n");
 }

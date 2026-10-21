@@ -161,6 +161,7 @@ SAIL_STEP_SRCS = $(SAIL_RISCV_MODEL_DIR)/riscv_step_common.sail \
                  $(SAIL_CHERI_MODEL_DIR)/cheri_decode_ext.sail \
                  $(SAIL_RISCV_MODEL_DIR)/riscv_fetch.sail \
                  $(SAIL_RISCV_MODEL_DIR)/riscv_step.sail \
+                 src/test_pte_ext.sail \
                  src/test_main_ext.sail \
                  $(SAIL_RISCV_MODEL_DIR)/test_main.sail
 
@@ -170,6 +171,7 @@ RVFI_STEP_SRCS = $(SAIL_RISCV_MODEL_DIR)/riscv_step_common.sail \
                  $(SAIL_CHERI_MODEL_DIR)/cheri_decode_ext.sail \
                  $(SAIL_RISCV_MODEL_DIR)/riscv_fetch_rvfi.sail \
                  $(SAIL_RISCV_MODEL_DIR)/riscv_step.sail \
+                 src/test_pte_ext.sail \
                  src/test_main_ext.sail \
                  $(SAIL_RISCV_MODEL_DIR)/test_main.sail
 
