@@ -401,7 +401,7 @@ function canR(cap : Capability) -> bool = getArchPermsLegalized(cap).R
 function canW(cap : Capability) -> bool = getArchPermsLegalized(cap).W
 function canC(cap : Capability) -> bool = getArchPermsLegalized(cap).C
 function canLM(cap : Capability) -> bool = getArchPermsLegalized(cap).LM
-function canEL(cap : Capability) -> bool = getArchPermsLegalized(cap).EL
+function canLG(cap : Capability) -> bool = getArchPermsLegalized(cap).LG
 function canSL(cap : Capability) -> bool = getArchPermsLegalized(cap).SL
 
 // Format used by YPERMR and YPERMC.
@@ -416,7 +416,7 @@ bitfield BitPerms : xlenbits = {
   C             : 5,
   G             : 4,
   SL            : 3,
-  EL            : 2,
+  LG            : 2,
   LM            : 1,
   W             : 0,
 }
@@ -435,7 +435,7 @@ function packPerms(arch_perms : ArchPerms, cap_level : bits(lvlbits), sd_perms :
     C = bool_bits(arch_perms.C),
     LM = bool_bits(arch_perms.LM),
     SL = bool_bits(arch_perms.SL),
-    EL = bool_bits(arch_perms.EL),
+    LG = bool_bits(arch_perms.LG),
     G = cap_level,
   ]
 
@@ -449,7 +449,7 @@ function unpackPerms(perms : BitPerms) -> (ArchPerms, bits(lvlbits), bits(cap_sd
       C = bool_bits(perms[C]),
       LM = bool_bits(perms[LM]),
       SL = bool_bits(perms[SL]),
-      EL = bool_bits(perms[EL]),
+      LG = bool_bits(perms[LG]),
     };
   (arch_perms, perms[G], perms[SDP])
 }
@@ -550,18 +550,18 @@ function legalizeLoadedArchPerms(loaded_cap : Capability, auth_cap : Capability)
   // their permissions changed.
 
   // Any unsealed capability with its tag set to 1 that is loaded from memory has
-  // its EL-permission cleared ... if the authorizing capability does not grant EL-permission.
+  // its LG-permission cleared ... if the authorizing capability does not grant LG-permission.
 
   let tagged_and_unsealed = loaded_cap.tag & not(capIsSealed(loaded_cap));
   let clearWLM = tagged_and_unsealed & not(canLM(auth_cap));
-  let clearEL = tagged_and_unsealed & not(canEL(auth_cap));
+  let clearLG = tagged_and_unsealed & not(canLG(auth_cap));
 
-  if clearWLM | clearEL then {
+  if clearWLM | clearLG then {
     let perms = getArchPermsLegalized(loaded_cap);
     let perms = { perms with
       W = perms.W & not(clearWLM),
       LM = perms.LM & not(clearWLM),
-      EL = perms.EL & not(clearEL),
+      LG = perms.LG & not(clearLG),
     };
     setArchPerms(loaded_cap, perms)
   } else loaded_cap
@@ -569,12 +569,11 @@ function legalizeLoadedArchPerms(loaded_cap : Capability, auth_cap : Capability)
 
 function restrictLoadedG(loaded_cap : Capability, auth_cap : Capability) -> Capability = {
   // Any unsealed capability with its tag set to 1 that is loaded from memory has
-  // ... its Capability Level (G) restricted to the
-  // authorizing capability’s Capability Level (G) if the authorizing capability
-  // does not grant EL-permission. If sealed, then only G is modified ...
+  // ... its Capability Level (G) restricted if the authorizing capability
+  // does not grant LG-permission. If sealed, then only G is modified ...
 
-  let restrictG = loaded_cap.tag & not(canEL(auth_cap));
-  if restrictG then {loaded_cap with g = auth_cap.g & loaded_cap.g} else loaded_cap
+  let restrictG = loaded_cap.tag & not(canLG(auth_cap));
+  if restrictG then {loaded_cap with g = 0b0} else loaded_cap
 }
 
 function legalizeSL(stored_cap : Capability, auth_cap : Capability) -> Capability = {
@@ -651,7 +650,7 @@ function capToString(cap : Capability) -> string = {
       (if perms.LM then "Lm" else "") ^
       (if perms.ASR then "Asr" else "") ^
       (if perms.SL then "Sl" else "") ^
-      (if perms.EL then "El" else ""),
+      (if perms.LG then "Lg" else ""),
       false
     )
   };

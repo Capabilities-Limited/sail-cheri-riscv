@@ -259,7 +259,7 @@ function test_cheri_permission_encoding() -> unit = {
     let dstR : regidx = Regidx(0b00011);
     if cap_size == 16 then {
         // Malformed permission combination, but it can be encoded (though is reserved) on RV64.
-        // P=1 (IntPtrMode), LM=0, SL=0, EL=0 ASR=1, X=0, R=1, W=1, C=0
+        // P=1 (IntPtrMode), LM=0, SL=0, LG=0 ASR=1, X=0, R=1, W=1, C=0
         let invalid = {null_cap with ap_p = 0b000101101};
         // We shouldn't be able to change the mode to CapPtrMode because X=0
         // so this should have no effect.
@@ -735,6 +735,24 @@ function test_cheri_reserved_hints() -> unit = {
     test_if_instr_reserved(bad_c_srai_hint, CapPtrMode, true);
 }
 
+function test_cheri_global() -> unit = {
+    let data_cap = root_cap;
+    let (root_perms, root_mode) = ap_p_encdec(root_ap_p);
+    let no_lg_perms = {root_perms with LG=false};
+    let auth_cap = {root_cap with address=zeros()@0x80000000, ap_p=ap_p_encdec(no_lg_perms, root_mode)};
+
+    let data_reg = Regidx(0b00001);
+    let auth_reg = Regidx(0b00010);
+
+    PCC = {setCapMode(PCC, CapPtrMode)};
+    Y(data_reg) = data_cap;
+    Y(auth_reg) = auth_cap;
+
+    assert(execute(StoreCapImm(data_reg, auth_reg, zeros())) == RETIRE_SUCCESS);
+    assert(execute(LoadCapImm(data_reg, auth_reg, zeros())) == RETIRE_SUCCESS);
+    assert(Y(data_reg) == {data_cap with g=0b0, ap_p=ap_p_encdec(no_lg_perms, root_mode)});
+}
+
 function test_main_ext() -> unit = {
     // Enable CHERI
     misa[Y] = 0b1;
@@ -761,6 +779,7 @@ function test_main_ext() -> unit = {
     test_cheri_invalid_addr();
     test_cheri_bad_jump();
     test_cheri_reserved_hints();
+    test_cheri_global();
     test_pte_ext();
     //test_cheri_enables(); Disable while cheri enables hardwired high
     print("CHERI tests passed\n");
