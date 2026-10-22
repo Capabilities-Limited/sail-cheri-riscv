@@ -6,9 +6,9 @@
 // handle_csr_op().
 
 function clause is_CSR_defined(0x03f) = cheri_registers_enabled() // ddc
-function clause is_CSR_defined(0x37f) = haveZstid() // mtid
-function clause is_CSR_defined(0x17f) = haveZstid() // stid
-function clause is_CSR_defined(0x07f) = haveZstid() // utid
+function clause is_CSR_defined(0x37f) = cheri_registers_enabled() // mtid
+function clause is_CSR_defined(0x17f) = cheri_registers_enabled() & extensionEnabled(Ext_S) // stid
+function clause is_CSR_defined(0x07f) = cheri_registers_enabled() & extensionEnabled(Ext_U) // utid
 function clause is_CSR_defined(0x7bd) = cheri_registers_enabled() & debug_mode_active // drootcsel
 function clause is_CSR_defined(0x7be) = cheri_registers_enabled() & debug_mode_active // drootc
 function clause is_CSR_defined(0x7bf) = cheri_registers_enabled() & debug_mode_active // dddc
